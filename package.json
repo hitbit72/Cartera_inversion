@@ -1,0 +1,21 @@
+{
+  "name": "cartera-inversion",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Gestión de cartera personal de acciones, ETF y criptomonedas",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @cartera/api",
+    "build": "npm run build -w @cartera/shared && npm run build -w @cartera/api",
+    "typecheck": "npm run typecheck -w @cartera/shared && npm run typecheck -w @cartera/api",
+    "test": "npm run test -w @cartera/api",
+    "test:watch": "npm run test:watch -w @cartera/api",
+    "invite": "npm run invite -w @cartera/api --"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
