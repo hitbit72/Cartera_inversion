@@ -119,6 +119,25 @@ describe('buildHistory', () => {
     expect(Number(last.twr_index)).toBeCloseTo(130, 1);
   });
 
+  it('no infla el TWR cuando el primer día hay compra y venta', () => {
+    const sell: TransactionRow = {
+      ...buy,
+      id: 'tx-2',
+      type: 'SELL',
+      quantity: '4.0000000000',
+      unit_price: '12.00000000',
+    };
+
+    const { series } = run({ to: '2024-01-02', transactions: [buy, sell] });
+    const last = series.at(-1)!;
+
+    // Se aportan 100 y se retiran 4 × 12 = 48; quedan 6 títulos a 10 = 60.
+    // El rendimiento se mide sobre los 100 aportados (108), no sobre el neto 52.
+    expect(last.market_value).toBe('60.00000000');
+    expect(last.net_contributions).toBe('52.00000000');
+    expect(last.twr_index).toBe('108.00');
+  });
+
   it('muestra una advertencia si falta el histórico de precios', () => {
     const { warnings } = run({ priceSeries: new Map() });
     expect(warnings.some((warning) => warning.code === 'PRICE_MISSING')).toBe(true);

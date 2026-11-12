@@ -9,10 +9,12 @@
   ],
   "scripts": {
     "dev": "npm run dev -w @cartera/api",
-    "build": "npm run build -w @cartera/shared && npm run build -w @cartera/api",
-    "typecheck": "npm run typecheck -w @cartera/shared && npm run typecheck -w @cartera/api",
+    "dev:web": "npm run dev -w @cartera/web",
+    "build": "npm run build -w @cartera/shared && npm run build -w @cartera/api && npm run build -w @cartera/web",
+    "typecheck": "npm run typecheck -w @cartera/shared && npm run typecheck -w @cartera/api && npm run typecheck -w @cartera/web",
     "test": "npm run test -w @cartera/api",
     "test:watch": "npm run test:watch -w @cartera/api",
+    "preview:web": "npm run preview -w @cartera/web",
     "invite": "npm run invite -w @cartera/api --"
   },
   "engines": {

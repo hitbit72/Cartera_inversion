@@ -166,6 +166,42 @@ describe('computePortfolio', () => {
     expect(withClosed.totals.realized_pnl).toBe('240.00000000');
   });
 
+  it('mide el rendimiento sobre el capital aportado, no sobre el efectivo restante', () => {
+    const transactions = [
+      transaction(),
+      transaction({
+        id: 'tx-2',
+        type: 'SELL',
+        trade_date: '2024-04-01',
+        quantity: '4.0000000000',
+        unit_price: '120.00000000',
+        fx_rate_eur: '0.9500000000',
+      }),
+    ];
+    const prices = new Map<string, PriceInfo>([
+      ['asset-a', { priceNative: D(110), currency: 'USD', date: '2024-06-01', stale: false, source: 'yahoo' }],
+    ]);
+
+    const result = computePortfolio({
+      profile,
+      assets: [asset()],
+      transactions,
+      dividends: [],
+      ledgers: computeLedgers(transactions, 'FIFO'),
+      prices,
+      fx,
+      includeClosed: false,
+    });
+
+    // Compra 900; venta de 4: 456 cobrados y 360 de coste → 96 realizados.
+    // Quedan 6 valoradas a 99 → 594 con 540 de coste → 54 no realizados.
+    expect(result.totals.realized_pnl).toBe('96.00000000');
+    expect(result.totals.unrealized_pnl).toBe('54.00000000');
+    expect(result.totals.net_invested).toBe('444.00000000');
+    // 150 de beneficio sobre los 900 aportados, no sobre los 444 restantes.
+    expect(result.totals.total_return_pct).toBe('16.67');
+  });
+
   it('avisa cuando falta el precio de un activo abierto', () => {
     const result = computePortfolio({
       profile,

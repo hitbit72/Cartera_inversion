@@ -2,7 +2,7 @@
 
 Aplicación web multiusuario para gestionar una cartera personal de acciones, ETF y criptomonedas: compras, ventas, dividendos, posiciones, plusvalías y rentabilidad, con precios de mercado y conversión de divisas.
 
-La API está terminada y probada contra un Supabase real. El frontend (React + Vite) se añadirá en la siguiente fase.
+API y frontend están terminados y probados contra un Supabase real.
 
 ## Stack
 
@@ -10,6 +10,7 @@ La API está terminada y probada contra un Supabase real. El frontend (React + V
 |---|---|
 | API | Node.js 22+ · Express 5 · TypeScript estricto |
 | Base de datos y autenticación | Supabase (PostgreSQL + GoTrue) con Row Level Security |
+| Frontend | React 19 · Vite 5 · TypeScript · Tailwind CSS 4 · TanStack Query · Recharts |
 | Cálculos | `decimal.js` (precisión decimal, sin errores de coma flotante) |
 | Validación | `zod` compartido entre cliente y servidor (`packages/shared`) |
 | Datos de mercado | Yahoo Finance (precios) y Frankfurter (divisas), con caché en PostgreSQL |
@@ -21,8 +22,9 @@ Decisiones de diseño detalladas: [`docs/01-arquitectura.md`](docs/01-arquitectu
 
 ```text
 apps/api/            API Express: rutas, servicios, cálculos, CLI de invitaciones
+apps/web/            Interfaz React: dashboard, operaciones, dividendos, activos y ajustes
 packages/shared/     Constantes, tipos y esquemas zod compartidos
-supabase/migrations/ Migraciones SQL (0001 → 0008)
+supabase/migrations/ Migraciones SQL (0001 → 0009)
 supabase/tests/      Pruebas de aislamiento RLS
 docs/                Arquitectura, esquema y especificación de la API
 ```
@@ -37,7 +39,7 @@ docs/                Arquitectura, esquema y especificación de la API
 
 1. Crea el proyecto en <https://supabase.com>.
 2. Abre **SQL Editor** y ejecuta los archivos de `supabase/migrations/` **en orden**, uno por uno:
-   `0001` → `0002` → `0003` → `0004` → `0005` → `0006` → `0007` → `0008`.
+   `0001` → `0002` → `0003` → `0004` → `0005` → `0006` → `0007` → `0008` → `0009`.
 3. En **Authentication → Providers → Email**, desactiva *Allow new users to sign up*.
    El registro solo se hace desde la API y siempre con una invitación previa.
 4. Opcional pero recomendable: configura SMTP propio en **Authentication → Emails** para que funcionen los correos de recuperación de contraseña.
@@ -85,17 +87,24 @@ Notas:
 
 ```bash
 npm install
-npm run dev
 ```
 
-La API escucha en `http://localhost:3000` (el frontend en desarrollo hará proxy same-origin, así que las cookies funcionan sin CORS). Comprueba:
+Arranca la API y la interfaz en **dos terminales**:
+
+```bash
+# terminal 1 · API en http://localhost:3000
+npm run dev
+
+# terminal 2 · interfaz en http://localhost:5173
+npm run dev:web
+```
+
+La API escucha en `http://localhost:3000`. Vite sirve la interfaz en `http://localhost:5173` y redirige `/api` y `/health` a la API (proxy same-origin), de modo que las cookies de sesión funcionan sin CORS. Comprueba la API:
 
 ```bash
 curl http://localhost:3000/health
 # {"status":"ok","database":"ok"}
 ```
-
-En desarrollo el frontend debe servirse desde `http://localhost:5173` y redirigir `/api` a `http://localhost:3000`.
 
 ## 4. Crear usuarios (solo por invitación)
 
@@ -119,8 +128,10 @@ El token se guarda únicamente como hash SHA-256, caduca a los 7 días y es de u
 | Comando | Función |
 |---|---|
 | `npm run dev` | API en modo desarrollo con recarga (`tsx watch`). |
-| `npm run build` | Compila `packages/shared` y `apps/api` a `dist/`. |
+| `npm run dev:web` | Interfaz en desarrollo con Vite y proxy a la API. |
+| `npm run build` | Compila `packages/shared`, `apps/api` y genera `apps/web/dist`. |
 | `npm start` | Ejecuta la API compilada (`node apps/api/dist/server.js`). |
+| `npm run preview:web` | Sirve la interfaz compilada para revisarla antes de desplegar. |
 | `npm run typecheck` | TypeScript en modo estricto en todos los paquetes. |
 | `npm test` | Pruebas unitarias y de API (Vitest + Supertest). |
 | `npm run invite -- ...` | CLI de invitaciones. |
@@ -162,7 +173,31 @@ Endpoints principales:
 
 Contrato completo, parámetros y ejemplos: [`docs/03-api-rest.md`](docs/03-api-rest.md).
 
-## 8. Despliegue en un servidor propio
+## 8. Interfaz web
+
+Rutas de la aplicación (`apps/web`):
+
+| Ruta | Contenido |
+|---|---|
+| `/login`, `/registro`, `/recuperar`, `/restablecer` | Acceso, alta con invitación y recuperación de contraseña. |
+| `/` | Dashboard: valor de mercado, plusvalías, dividendos, rendimiento total, TWR/XIRR, benchmark, evolución, distribución por tipo/sector/país/divisa/activo, posiciones abiertas y dividendos por año. |
+| `/operaciones` | Histórico paginado con filtros y alta de compras/ventas (con divisa y comisiones). |
+| `/dividendos` | Resumen bruto/retenciones/neto, agrupación por año o activo y alta de dividendos. |
+| `/activos` | Catálogo con búsqueda en Yahoo Finance, clasificación editable y precio manual de respaldo. |
+| `/ajustes` | Perfil, divisa base, método de coste, benchmark, tema y cambio de contraseña. |
+
+Detalles de comportamiento:
+
+- **Tema** oscuro por defecto con conmutador a claro; la preferencia se guarda en el perfil y en `localStorage`.
+- **Divisa base** configurable (EUR por defecto). Los importes se convierten con el tipo de cambio del día y la interfaz muestra la fecha y el tipo aplicados.
+- **Validación** de formularios con los mismos esquemas zod de `packages/shared`, y además en el servidor.
+- **Precios**: el botón *Actualizar precios* lanza `POST /market/refresh`; la API responde 202 y la interfaz refresca las consultas cuando termina la actualización en segundo plano.
+- Si la API de mercado falla, el dashboard sigue funcionando con la última cotización en caché o el precio manual y muestra avisos.
+- Alcance actual: no hay edición/borrado avanzado de operaciones ni gestión de varias carteras; cada usuario tiene una sola cuenta.
+
+Para revisar la versión compilada con el proxy de la API en local, sirve `apps/web/dist` desde el mismo origen que `/api` (por ejemplo con Nginx) o usa `npm run preview:web` junto con la API.
+
+## 9. Despliegue en un servidor propio
 
 1. Instala Node.js 22 LTS y clona el proyecto.
 2. `npm ci && npm run build`.
@@ -188,7 +223,32 @@ Contrato completo, parámetros y ejemplos: [`docs/03-api-rest.md`](docs/03-api-r
    WantedBy=multi-user.target
    ```
 
-5. Reverse proxy con HTTPS (Nginx o Caddy) hacia `127.0.0.1:3000`, sirviendo el frontend y `/api` desde el **mismo dominio**. La API no habilita CORS a propósito.
+5. Reverse proxy con HTTPS (Nginx o Caddy) hacia `127.0.0.1:3000`. El frontend compilado está en `apps/web/dist`: sírvelo como estático y redirige `/api/*` y `/health` a la API, siempre desde el **mismo dominio**. La API no habilita CORS a propósito. Ejemplo de Nginx:
+
+   ```nginx
+   server {
+     listen 443 ssl;
+     server_name tu-dominio.com;
+
+     root /srv/cartera/apps/web/dist;
+     index index.html;
+
+     location / {
+       try_files $uri /index.html;   # rutas de React Router
+     }
+
+     location /api/ {
+       proxy_pass http://127.0.0.1:3000;
+       proxy_set_header Host $host;
+       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+       proxy_set_header X-Forwarded-Proto $scheme;
+     }
+
+     location = /health {
+       proxy_pass http://127.0.0.1:3000;
+     }
+   }
+   ```
 6. Con proxy delante, la API activa `trust proxy` en producción para que los límites de intentos usen la IP real.
 7. El CLI de invitaciones se ejecuta en el servidor con el mismo `EnvironmentFile`:
 
@@ -198,7 +258,7 @@ Contrato completo, parámetros y ejemplos: [`docs/03-api-rest.md`](docs/03-api-r
 
 8. Copias de seguridad: activa las backups de Supabase o programa `pg_dump` diario de las tablas `public.*`.
 
-## 9. Seguridad
+## 10. Seguridad
 
 - Contraseñas gestionadas por Supabase Auth con hash; la API solo comprueba fortaleza (12–72 caracteres y variedad) y no las almacena.
 - Registro cerrado: solo se crea cuenta consumiendo una invitación válida y de un solo uso.
@@ -210,9 +270,9 @@ Contrato completo, parámetros y ejemplos: [`docs/03-api-rest.md`](docs/03-api-r
 - `service_role` solo se usa en el CLI de invitaciones y en las cachés globales de mercado. No se envía al cliente.
 - Secretos mediante variables de entorno; `.env` fuera del control de versiones.
 
-## 10. Limitaciones conocidas
+## 11. Limitaciones conocidas
 
 - El límite de fallos de login por email y las cachés en memoria son por proceso: válido para una sola instancia. Si se escala horizontalmente, hay que moverlos a Redis/PostgreSQL.
 - Yahoo Finance no es una API oficial: el proveedor está detrás de una capa de abstracción y hay entrada manual de precios como respaldo. Si falla, el dashboard sigue funcionando con la última cotización en caché y muestra avisos.
-- El frontend aún no está implementado; esta entrega cubre API, base de datos, migraciones, CLI y pruebas.
+- El frontend cubre el núcleo de uso (sesión, dashboard, operaciones, dividendos, activos y ajustes). Quedan para una fase posterior la edición/borrado avanzado de operaciones, el CRUD completo de activos y la gestión de varias carteras.
 - Las vulnerabilidades restantes de `npm audit` corresponden a dependencias **de desarrollo** de Vitest/esbuild, no se despliegan con la API.

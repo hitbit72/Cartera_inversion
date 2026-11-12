@@ -221,7 +221,18 @@ export const computePortfolio = (input: PortfolioCalcInput): PortfolioCalcResult
     input.fx,
     netInvestedEur(input.transactions.length > 0 ? input.ledgers.values() : []),
   );
-  const denominator = netInvested.gt(0) ? netInvested : D(totalsDecimal.cost);
+
+  // El rendimiento se mide sobre todo el capital aportado en compras. Usar el
+  // efectivo neto (compras menos ventas) como denominador lo acerca a cero tras
+  // vender y dispara el porcentaje a cifras sin sentido.
+  let grossInvested = ZERO;
+  for (const ledger of input.ledgers.values()) {
+    for (const computation of ledger.transactions.values()) {
+      if (computation.flowEur.gt(0)) grossInvested = grossInvested.plus(computation.flowEur);
+    }
+  }
+
+  const denominator = grossInvested.gt(0) ? grossInvested : D(totalsDecimal.cost);
   const totalReturnPct = percent(totalsDecimal.total, denominator);
 
   const visible = internal

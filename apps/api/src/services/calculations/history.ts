@@ -39,6 +39,10 @@ export interface HistoryResult {
 
 interface DayEvent {
   contributionsEur: Decimal;
+  /** Aportaciones brutas del día (compras). */
+  inflowEur: Decimal;
+  /** Retiradas brutas del día (ventas). */
+  outflowEur: Decimal;
   dividendsEur: Decimal;
   quantityDelta: Map<string, Decimal>;
 }
@@ -108,6 +112,8 @@ export const buildHistory = (input: HistoryInput): HistoryResult => {
     if (existing) return existing;
     const created: DayEvent = {
       contributionsEur: ZERO,
+      inflowEur: ZERO,
+      outflowEur: ZERO,
       dividendsEur: ZERO,
       quantityDelta: new Map(),
     };
@@ -122,9 +128,15 @@ export const buildHistory = (input: HistoryInput): HistoryResult => {
     const fees = D(tx.fees);
     const fx = D(tx.fx_rate_eur);
     // Compra: aportación positiva. Venta: retirada (importe neto recibido).
-    event.contributionsEur = event.contributionsEur.plus(
-      tx.type === 'BUY' ? gross.plus(fees).mul(fx) : gross.minus(fees).mul(fx).negated(),
-    );
+    if (tx.type === 'BUY') {
+      const inflow = gross.plus(fees).mul(fx);
+      event.inflowEur = event.inflowEur.plus(inflow);
+      event.contributionsEur = event.contributionsEur.plus(inflow);
+    } else {
+      const outflow = gross.minus(fees).mul(fx);
+      event.outflowEur = event.outflowEur.plus(outflow);
+      event.contributionsEur = event.contributionsEur.minus(outflow);
+    }
     const delta = D(tx.quantity).mul(tx.type === 'BUY' ? 1 : -1);
     event.quantityDelta.set(tx.asset_id, (event.quantityDelta.get(tx.asset_id) ?? ZERO).plus(delta));
   }
@@ -188,7 +200,7 @@ export const buildHistory = (input: HistoryInput): HistoryResult => {
     ? fxLookup(input.fxRates, input.benchmark.currency)
     : (): Decimal => D(1);
 
-  let previousTotalEur: Decimal | null = null;
+  let previousTotalEur: Decimal = ZERO;
   let twr = D(1);
   const daily: Array<{
     day: string;
@@ -204,6 +216,8 @@ export const buildHistory = (input: HistoryInput): HistoryResult => {
     const event = events.get(day);
     // Flujo del día (no acumulado): es lo que exige la fórmula de TWR.
     const dayFlow = event?.contributionsEur ?? ZERO;
+    const dayInflow = event?.inflowEur ?? ZERO;
+    const dayOutflow = event?.outflowEur ?? ZERO;
     if (event) {
       cumulativeContributions = cumulativeContributions.plus(event.contributionsEur);
       cumulativeDividends = cumulativeDividends.plus(event.dividendsEur);
@@ -231,15 +245,17 @@ export const buildHistory = (input: HistoryInput): HistoryResult => {
 
     const totalEur = marketValueEur.plus(cumulativeDividends);
 
-    if (previousTotalEur !== null && !previousTotalEur.isZero()) {
+    if (!previousTotalEur.isZero()) {
       // Flujos a cierre de día: el importe aportado o retirado ese día no es
       // rentabilidad.
       const returnDay = totalEur.minus(dayFlow).div(previousTotalEur).minus(1);
       twr = twr.mul(D(1).plus(returnDay));
-    } else if (previousTotalEur !== null && dayFlow.gt(0) && totalEur.gt(0)) {
-      // Primera aportación (o reinicio tras vender todo): sin valor previo se
-      // usa el coste como base para no perder la variación de ese primer día.
-      twr = twr.mul(totalEur.div(dayFlow));
+    } else if (dayInflow.gt(0)) {
+      // Primera aportación (o reinicio tras vender todo): la base es el dinero
+      // aportado, no el neto de ventas. Si el mismo día se vende parte de la
+      // posición, el efectivo retirado también forma parte de lo generado.
+      const returnDay = totalEur.plus(dayOutflow).div(dayInflow);
+      twr = twr.mul(returnDay);
     }
     previousTotalEur = totalEur;
 

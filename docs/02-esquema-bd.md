@@ -43,7 +43,7 @@ Notas:
 | `base_currency` | `currency_code` | `NOT NULL DEFAULT 'EUR'`, en la lista de divisas |
 | `cost_method` | `text` | `NOT NULL DEFAULT 'FIFO'`, `CHECK IN ('FIFO','AVERAGE')` |
 | `benchmark_symbol` | `text` | `NULL DEFAULT 'URTH'`, longitud ≤ 20 |
-| `theme` | `text` | `NOT NULL DEFAULT 'system'`, `CHECK IN ('light','dark','system')` |
+| `theme` | `text` | `NOT NULL DEFAULT 'dark'`, `CHECK IN ('light','dark','system')` |
 | `created_at` | `timestamptz` | `NOT NULL DEFAULT now()` |
 | `updated_at` | `timestamptz` | `NOT NULL DEFAULT now()` |
 
