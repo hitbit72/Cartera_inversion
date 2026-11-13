@@ -28,7 +28,7 @@ import {
 } from '../components/ui';
 import { ApiError, api } from '../lib/api';
 import { errorMessage, fieldErrors } from '../lib/forms';
-import { formatDate, money, price, today } from '../lib/format';
+import { decimalInput, formatDate, money, price, today } from '../lib/format';
 
 interface DividendsResponse {
   data: DividendView[];
@@ -61,6 +61,7 @@ export const DividendsPage = () => {
   const [assetFilter, setAssetFilter] = useState('');
   const [groupBy, setGroupBy] = useState<'year' | 'asset'>('year');
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<DividendView | null>(null);
   const [form, setForm] = useState<DividendFormState>(emptyForm());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
@@ -104,10 +105,31 @@ export const DividendsPage = () => {
 
   const openModal = () => {
     const currency = assets[0]?.currency ?? user?.base_currency ?? 'EUR';
+    setEditing(null);
     setForm(emptyForm(currency));
     setErrors({});
     setMessage(null);
     setOpen(true);
+  };
+
+  const openEdit = (dividend: DividendView) => {
+    setEditing(dividend);
+    setForm({
+      assetId: dividend.asset_id,
+      paymentDate: dividend.payment_date,
+      gross: decimalInput(dividend.gross_amount),
+      withholding: decimalInput(dividend.withholding_tax),
+      currency: dividend.currency,
+      notes: dividend.notes ?? '',
+    });
+    setErrors({});
+    setMessage(null);
+    setOpen(true);
+  };
+
+  const closeModal = () => {
+    setOpen(false);
+    setEditing(null);
   };
 
   const invalidate = async () => {
@@ -138,9 +160,13 @@ export const DividendsPage = () => {
     setErrors({});
     setSubmitting(true);
     try {
-      await api.post('/dividends', parsed.data);
+      if (editing) {
+        await api.patch(`/dividends/${editing.id}`, parsed.data);
+      } else {
+        await api.post('/dividends', parsed.data);
+      }
       await invalidate();
-      setOpen(false);
+      closeModal();
       setForm(emptyForm());
     } catch (error) {
       if (error instanceof ApiError) {
@@ -385,14 +411,19 @@ export const DividendsPage = () => {
                         ) : null}
                       </td>
                       <td className="px-5 py-3 text-right">
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          loading={deletingId === dividend.id}
-                          onClick={() => void remove(dividend)}
-                        >
-                          Eliminar
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="subtle" size="sm" onClick={() => openEdit(dividend)}>
+                            Editar
+                          </Button>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            loading={deletingId === dividend.id}
+                            onClick={() => void remove(dividend)}
+                          >
+                            Eliminar
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -417,16 +448,20 @@ export const DividendsPage = () => {
 
       <Modal
         open={open}
-        onClose={() => setOpen(false)}
-        title="Anotar dividendo"
-        subtitle="El tipo de cambio se toma automáticamente del día del cobro."
+        onClose={closeModal}
+        title={editing ? 'Editar dividendo' : 'Anotar dividendo'}
+        subtitle={
+          editing
+            ? 'Los cambios recalculan el neto y el rendimiento con el tipo de cambio del día.'
+            : 'El tipo de cambio se toma automáticamente del día del cobro.'
+        }
         footer={
           <>
-            <Button variant="ghost" onClick={() => setOpen(false)}>
+            <Button variant="ghost" onClick={closeModal}>
               Cancelar
             </Button>
             <Button type="submit" form="dividend-form" variant="primary" loading={submitting}>
-              Guardar dividendo
+              {editing ? 'Guardar cambios' : 'Guardar dividendo'}
             </Button>
           </>
         }

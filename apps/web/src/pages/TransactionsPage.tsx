@@ -31,6 +31,7 @@ import { ApiError, api } from '../lib/api';
 import { errorMessage, fieldErrors } from '../lib/forms';
 import {
   ASSET_TYPE_LABELS,
+  decimalInput,
   formatDate,
   money,
   price,
@@ -79,6 +80,7 @@ export const TransactionsPage = () => {
   const [assetFilter, setAssetFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState<'' | TransactionType>('');
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<TransactionView | null>(null);
   const [form, setForm] = useState<TransactionFormState>(emptyForm());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
@@ -133,10 +135,33 @@ export const TransactionsPage = () => {
 
   const openModal = () => {
     const currency = assets[0]?.currency ?? user?.base_currency ?? 'EUR';
+    setEditing(null);
     setForm(emptyForm(currency));
     setErrors({});
     setMessage(null);
     setOpen(true);
+  };
+
+  const openEdit = (transaction: TransactionView) => {
+    setEditing(transaction);
+    setForm({
+      assetId: transaction.asset_id,
+      type: transaction.type,
+      tradeDate: transaction.trade_date,
+      quantity: decimalInput(transaction.quantity),
+      unitPrice: decimalInput(transaction.unit_price),
+      fees: decimalInput(transaction.fees),
+      currency: transaction.currency,
+      notes: transaction.notes ?? '',
+    });
+    setErrors({});
+    setMessage(null);
+    setOpen(true);
+  };
+
+  const closeModal = () => {
+    setOpen(false);
+    setEditing(null);
   };
 
   const patchForm = (patch: Partial<TransactionFormState>) => {
@@ -174,9 +199,13 @@ export const TransactionsPage = () => {
     setErrors({});
     setSubmitting(true);
     try {
-      await api.post('/transactions', parsed.data);
+      if (editing) {
+        await api.patch(`/transactions/${editing.id}`, parsed.data);
+      } else {
+        await api.post('/transactions', parsed.data);
+      }
       await invalidate();
-      setOpen(false);
+      closeModal();
       setForm(emptyForm());
     } catch (error) {
       if (error instanceof ApiError) {
@@ -209,7 +238,16 @@ export const TransactionsPage = () => {
   };
 
   const selectedAsset = assets.find((asset) => asset.id === form.assetId);
-  const available = selectedAsset ? positionsByAsset.get(selectedAsset.id) ?? 0 : 0;
+  const baseAvailable = selectedAsset ? positionsByAsset.get(selectedAsset.id) ?? 0 : 0;
+  // Al editar, la posición actual ya incluye el efecto de esta operación. Se
+  // descuenta para mostrar cuánto se podría vender con el cambio aplicado.
+  const editingDelta =
+    editing && editing.asset_id === form.assetId
+      ? editing.type === 'SELL'
+        ? Number(editing.quantity)
+        : -Number(editing.quantity)
+      : 0;
+  const available = Math.max(0, baseAvailable + editingDelta);
   const quickCurrency = form.currency || 'EUR';
 
   return (
@@ -357,14 +395,19 @@ export const TransactionsPage = () => {
                         )}
                       </td>
                       <td className="px-5 py-3 text-right">
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          loading={deletingId === transaction.id}
-                          onClick={() => void remove(transaction)}
-                        >
-                          Eliminar
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="subtle" size="sm" onClick={() => openEdit(transaction)}>
+                            Editar
+                          </Button>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            loading={deletingId === transaction.id}
+                            onClick={() => void remove(transaction)}
+                          >
+                            Eliminar
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -389,17 +432,21 @@ export const TransactionsPage = () => {
 
       <Modal
         open={open}
-        onClose={() => setOpen(false)}
-        title="Nueva operación"
-        subtitle="El tipo de cambio se toma automáticamente del día de la operación."
+        onClose={closeModal}
+        title={editing ? 'Editar operación' : 'Nueva operación'}
+        subtitle={
+          editing
+            ? 'Los cambios recalculan posiciones y plusvalías con el tipo de cambio del día.'
+            : 'El tipo de cambio se toma automáticamente del día de la operación.'
+        }
         wide
         footer={
           <>
-            <Button variant="ghost" onClick={() => setOpen(false)}>
+            <Button variant="ghost" onClick={closeModal}>
               Cancelar
             </Button>
             <Button type="submit" form="transaction-form" variant="primary" loading={submitting}>
-              Guardar operación
+              {editing ? 'Guardar cambios' : 'Guardar operación'}
             </Button>
           </>
         }

@@ -191,6 +191,7 @@ Detalles de comportamiento:
 - **Tema** oscuro por defecto con conmutador a claro; la preferencia se guarda en el perfil y en `localStorage`.
 - **Divisa base** configurable (EUR por defecto). Los importes se convierten con el tipo de cambio del día y la interfaz muestra la fecha y el tipo aplicados.
 - **Validación** de formularios con los mismos esquemas zod de `packages/shared`, y además en el servidor.
+- **Alta, edición y borrado** de operaciones, dividendos y activos. El borrado pide confirmación y cualquier cambio recalcula posiciones, plusvalías y rentabilidad al instante.
 - **Precios**: el botón *Actualizar precios* lanza `POST /market/refresh`; la API responde 202 y la interfaz refresca las consultas cuando termina la actualización en segundo plano.
 - Si la API de mercado falla, el dashboard sigue funcionando con la última cotización en caché o el precio manual y muestra avisos.
 - Alcance actual: no hay edición/borrado avanzado de operaciones ni gestión de varias carteras; cada usuario tiene una sola cuenta.
@@ -274,5 +275,5 @@ Para revisar la versión compilada con el proxy de la API en local, sirve `apps/
 
 - El límite de fallos de login por email y las cachés en memoria son por proceso: válido para una sola instancia. Si se escala horizontalmente, hay que moverlos a Redis/PostgreSQL.
 - Yahoo Finance no es una API oficial: el proveedor está detrás de una capa de abstracción y hay entrada manual de precios como respaldo. Si falla, el dashboard sigue funcionando con la última cotización en caché y muestra avisos.
-- El frontend cubre el núcleo de uso (sesión, dashboard, operaciones, dividendos, activos y ajustes). Quedan para una fase posterior la edición/borrado avanzado de operaciones, el CRUD completo de activos y la gestión de varias carteras.
+- El frontend cubre el núcleo de uso (sesión, dashboard, operaciones, dividendos, activos y ajustes), con alta, edición y borrado. Quedan para una fase posterior la importación de extractos (CSV), la gestión de varias carteras y las vistas avanzadas de impuestos.
 - Las vulnerabilidades restantes de `npm audit` corresponden a dependencias **de desarrollo** de Vitest/esbuild, no se despliegan con la API.

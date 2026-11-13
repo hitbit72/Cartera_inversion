@@ -68,16 +68,37 @@ export const quantity = (value: string | number | null | undefined): string => {
   return quantityFormatter.format(numeric);
 };
 
-const priceFormatter = new Intl.NumberFormat(LOCALE, {
+const priceFormatter2 = new Intl.NumberFormat(LOCALE, {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+const priceFormatter6 = new Intl.NumberFormat(LOCALE, {
   minimumFractionDigits: 2,
   maximumFractionDigits: 6,
 });
 
+/**
+ * Precio con dos decimales para importes normales y hasta seis para valores
+ * pequeños (divisas, cripto), donde dos decimales perderían información.
+ */
 export const price = (value: string | number | null | undefined): string => {
   if (value === null || value === undefined || value === '') return '—';
   const numeric = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(numeric)) return '—';
-  return priceFormatter.format(numeric);
+  const formatter = Math.abs(numeric) < 1 ? priceFormatter6 : priceFormatter2;
+  return formatter.format(numeric);
+};
+
+/**
+ * Convierte un decimal de la API («10.0000000000») en un valor editable
+ * («10») sin ceros a la derecha ni punto sobrante.
+ */
+export const decimalInput = (value: string | number | null | undefined): string => {
+  if (value === null || value === undefined) return '';
+  const text = String(value);
+  if (!text.includes('.')) return text;
+  return text.replace(/\.?0+$/, '') || '0';
 };
 
 const dateFormatter = new Intl.DateTimeFormat(LOCALE, {
