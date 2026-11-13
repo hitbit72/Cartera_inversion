@@ -13,7 +13,7 @@ export const AuthLayout = ({
   footer?: ReactNode;
 }) => (
   <div className="grid min-h-dvh lg:grid-cols-[1.05fr_1fr]">
-    <aside className="relative hidden flex-col justify-between overflow-hidden border-r border-line bg-surface p-10 lg:flex">
+    <aside className="relative hidden flex-col justify-between overflow-hidden border-r border-line bg-surface p-10 lg:flex items-center">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 opacity-70"
@@ -66,7 +66,7 @@ export const AuthLayout = ({
         </svg>
       </div>
 
-      <ul className="relative grid gap-2 text-xs text-muted">
+      <ul className="relative grid gap-1 text-xs text-muted">
         <li>· Cálculo FIFO y coste medio con comisiones y tipo de cambio del día.</li>
         <li>· Precios de mercado con caché y entrada manual de respaldo.</li>
         <li>· Datos aislados por usuario en la propia base de datos.</li>
