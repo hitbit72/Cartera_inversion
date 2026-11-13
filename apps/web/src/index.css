@@ -89,6 +89,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   }
 }
 
+/*
 .animate-rise {
   animation: rise 260ms ease-out both;
 }
+*/

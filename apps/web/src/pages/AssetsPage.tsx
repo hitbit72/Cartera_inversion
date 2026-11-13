@@ -407,6 +407,7 @@ export const AssetsPage = () => {
               assetType: instrument.asset_type,
               currency: instrument.currency,
               exchange: instrument.exchange ?? '',
+              sector: instrument.sector ?? '',
             });
           }} /> : null}
 

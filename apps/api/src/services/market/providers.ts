@@ -229,6 +229,8 @@ export class YahooMarketDataProvider implements MarketDataProvider {
           currency?: string;
           exchange?: string;
           exchDisp?: string;
+          sector?: string;
+          sectorDisp?: string;
         }>;
       };
 
@@ -250,6 +252,7 @@ export class YahooMarketDataProvider implements MarketDataProvider {
           exchange: quote.exchDisp ?? quote.exchange ?? null,
           asset_type: typeMap[quote.quoteType ?? ''] ?? 'STOCK',
           currency: isCurrency(quote.currency ?? '') ? (quote.currency as Currency) : 'USD',
+          sector: quote.sectorDisp ?? quote.sector ?? null,
         }));
     } catch (error) {
       this.breaker.recordFailure();

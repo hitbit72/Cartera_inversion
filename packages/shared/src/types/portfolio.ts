@@ -144,6 +144,7 @@ export interface Instrument {
   exchange: string | null;
   asset_type: AssetType;
   currency: Currency;
+  sector: string | null;
 }
 
 export interface TransactionView {
