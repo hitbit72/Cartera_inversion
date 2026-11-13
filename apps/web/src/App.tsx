@@ -2,6 +2,7 @@ import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './app/providers';
 import { AppShell } from './components/AppShell';
 import { Spinner } from './components/ui';
+import { AssetDetailPage } from './pages/AssetDetailPage';
 import { AssetsPage } from './pages/AssetsPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { DividendsPage } from './pages/DividendsPage';
@@ -60,6 +61,7 @@ export const App = () => (
       <Route path="/operaciones" element={<TransactionsPage />} />
       <Route path="/dividendos" element={<DividendsPage />} />
       <Route path="/activos" element={<AssetsPage />} />
+      <Route path="/activos/:id" element={<AssetDetailPage />} />
       <Route path="/ajustes" element={<SettingsPage />} />
     </Route>
 

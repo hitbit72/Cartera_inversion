@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AssetRow, AssetType, Currency, Instrument } from '@cartera/shared';
 import {
@@ -74,6 +75,9 @@ const fromAsset = (asset: AssetRow): AssetFormState => ({
 
 export const AssetsPage = () => {
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const editId = searchParams.get('edit');
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<AssetRow | null>(null);
@@ -226,6 +230,15 @@ export const AssetsPage = () => {
     }
   };
 
+  useEffect(() => {
+    if (!editId) return;
+    const asset = assets.find((a) => a.id === editId);
+    if (asset) {
+      openEdit(asset);
+      navigate('?', { replace: true });
+    }
+  }, [editId, assets, navigate]);
+
   const open = createOpen || editing !== null;
   const closeModal = () => {
     setCreateOpen(false);
@@ -303,11 +316,17 @@ export const AssetsPage = () => {
                     className="border-b border-line/60 transition last:border-0 hover:bg-surface-2/60"
                   >
                     <td className="px-5 py-3">
-                      <p className="font-medium text-ink">{asset.symbol}</p>
-                      <p className="max-w-[220px] truncate text-[11px] text-muted">{asset.name}</p>
-                      {asset.exchange ? (
-                        <p className="text-[10px] text-muted/70">{asset.exchange}</p>
-                      ) : null}
+                      <div>
+                        <Link to={`/activos/${asset.id}`}>
+                          <p className="font-medium text-ink">{asset.symbol}</p>
+                        </Link>
+                        <p className="max-w-[220px] truncate text-[11px] text-muted">
+                          {asset.name}
+                        </p>
+                        {asset.exchange ? (
+                          <p className="text-[10px] text-muted/70">{asset.exchange}</p>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-3 py-3">
                       <Badge>{ASSET_TYPE_LABELS[asset.asset_type] ?? asset.asset_type}</Badge>

@@ -180,10 +180,11 @@ Rutas de la aplicación (`apps/web`):
 | Ruta | Contenido |
 |---|---|
 | `/login`, `/registro`, `/recuperar`, `/restablecer` | Acceso, alta con invitación y recuperación de contraseña. |
-| `/` | Dashboard: valor de mercado, plusvalías, dividendos, rendimiento total, TWR/XIRR, benchmark, evolución, distribución por tipo/sector/país/divisa/activo, posiciones abiertas y dividendos por año. |
+| `/` | Dashboard: valor de mercado, plusvalías, dividendos, rendimiento total, TWR/XIRR, benchmark, evolución, distribución por tipo/sector/país/divisa/activo, posiciones abiertas y cerradas, dividendos por año. |
 | `/operaciones` | Histórico paginado con filtros y alta de compras/ventas (con divisa y comisiones). |
 | `/dividendos` | Resumen bruto/retenciones/neto, agrupación por año o activo y alta de dividendos. |
 | `/activos` | Catálogo con búsqueda en Yahoo Finance, clasificación editable y precio manual de respaldo. |
+| `/activos/:id` | Ficha de activo: clasificación, posición (abierta o cerrada), P&L realizado y no realizado, dividendos acumulados, listado de operaciones y dividendos del activo. Enlaces a editar activo y nueva operación. |
 | `/ajustes` | Perfil, divisa base, método de coste, benchmark, tema y cambio de contraseña. |
 
 Detalles de comportamiento:

@@ -94,7 +94,7 @@ export const DashboardPage = () => {
 
   const portfolioQuery = useQuery({
     queryKey: ['portfolio'],
-    queryFn: () => api.get<PortfolioResponse>('/portfolio'),
+    queryFn: () => api.get<PortfolioResponse>('/portfolio?include_closed=true'),
   });
 
   const portfolio = portfolioQuery.data;
@@ -160,10 +160,28 @@ export const DashboardPage = () => {
 
   const positions = useMemo(
     () =>
-      [...(portfolio?.positions ?? [])].sort(
-        (a, b) => Number(b.market_value) - Number(a.market_value),
-      ),
+      (portfolio?.positions ?? [])
+        .filter((position) => Number(position.quantity) > 0)
+        .sort((a, b) => Number(b.market_value) - Number(a.market_value)),
     [portfolio],
+  );
+
+  const closedPositions = useMemo(
+    () =>
+      (portfolio?.positions ?? []).filter((position) => Number(position.quantity) === 0),
+    [portfolio],
+  );
+
+  const closedRealized = useMemo(
+    () =>
+      closedPositions.reduce((total, p) => total + Number(p.realized_pnl), 0),
+    [closedPositions],
+  );
+
+  const closedDividends = useMemo(
+    () =>
+      closedPositions.reduce((total, p) => total + Number(p.dividends_net), 0),
+    [closedPositions],
   );
 
   const warnings = useMemo(() => {
@@ -268,7 +286,7 @@ export const DashboardPage = () => {
           />
         </Card>
       ) : (
-        <>
+        <div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <Stat
               label="Valor de mercado"
@@ -545,7 +563,9 @@ export const DashboardPage = () => {
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-2">
                           <div>
-                            <p className="font-medium text-ink">{position.asset.symbol}</p>
+                            <Link to={`/activos/${position.asset.id}`}>
+                              <p className="font-medium text-ink">{position.asset.symbol}</p>
+                            </Link>
                             <p className="max-w-[200px] truncate text-[11px] text-muted">
                               {position.asset.name}
                             </p>
@@ -596,6 +616,88 @@ export const DashboardPage = () => {
                 </tbody>
               </table>
             </div>
+          </Card>
+
+          <Card padded={false}>
+            <div className="flex flex-wrap items-end justify-between gap-2 px-5 pt-5">
+              <div>
+                <h2 className="text-sm font-semibold text-ink">Posiciones cerradas</h2>
+                <p className="mt-1 text-xs text-muted">
+                  {closedPositions.length} {closedPositions.length === 1 ? 'activo' : 'activos'} ·{' '}
+                  {money(closedRealized, base)} P&L realizado · {money(closedDividends, base)} dividendos netos
+                </p>
+              </div>
+            </div>
+
+            {closedPositions.length === 0 ? (
+              <div className="px-5 py-6 text-center">
+                <EmptyState
+                  title="Sin posiciones cerradas"
+                  description="Cuando vendas una posición por completo, aparecerá aquí con su P&L realizado y sus dividendos acumulados."
+                />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[900px] text-sm">
+                  <thead>
+                    <tr className="border-b border-line text-left text-[11px] uppercase tracking-wider text-muted">
+                      <th className="px-5 py-3 font-medium">Activo</th>
+                      <th className="px-3 py-3 text-right font-medium">Coste</th>
+                      <th className="px-3 py-3 text-right font-medium">P&L realizado</th>
+                      <th className="px-3 py-3 text-right font-medium">Dividendos netos</th>
+                      <th className="px-3 py-3 text-right font-medium">Total P&L</th>
+                      <th className="px-5 py-3 text-right font-medium">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {closedPositions.map((position) => (
+                      <tr
+                        key={position.asset.id}
+                        className="border-b border-line/60 transition last:border-0 hover:bg-surface-2/60"
+                      >
+                        <td className="px-5 py-3">
+                          <div className="flex items-center gap-2">
+                            <div>
+                              <Link to={`/activos/${position.asset.id}`}>
+                                <p className="font-medium text-ink">{position.asset.symbol}</p>
+                              </Link>
+                              <p className="max-w-[200px] truncate text-[11px] text-muted">
+                                {position.asset.name}
+                              </p>
+                              <span className="text-[10px] text-muted/70">{position.asset.asset_type}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 text-right tabular text-muted">
+                          {money(position.cost_basis, base)}
+                        </td>
+                        <td className="px-3 py-3 text-right tabular">
+                          <span className={signClass(position.realized_pnl)}>
+                            {money(position.realized_pnl, base)}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 text-right tabular text-muted">
+                          {money(position.dividends_net, base)}
+                        </td>
+                        <td className="px-3 py-3 text-right tabular">
+                          <span className={signClass(position.total_pnl)}>
+                            {money(position.total_pnl, base)}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          <Link
+                            to={`/activos/${position.asset.id}`}
+                            className="text-xs font-medium text-accent hover:underline"
+                          >
+                            Ver detalle
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </Card>
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
@@ -675,7 +777,7 @@ export const DashboardPage = () => {
               </ul>
             </Card>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

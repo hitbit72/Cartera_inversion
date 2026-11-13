@@ -1,6 +1,6 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useState, useEffect, type FormEvent } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import type {
   AssetRow,
   AssetType,
@@ -76,6 +76,9 @@ export const TransactionsPage = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const base = user?.base_currency ?? 'EUR';
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const assetParam = searchParams.get('asset');
 
   const [assetFilter, setAssetFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState<'' | TransactionType>('');
@@ -248,6 +251,17 @@ export const TransactionsPage = () => {
         : -Number(editing.quantity)
       : 0;
   const available = Math.max(0, baseAvailable + editingDelta);
+
+  useEffect(() => {
+    if (!assetParam) return;
+    const asset = assets.find((a) => a.id === assetParam);
+    if (asset) {
+      openModal();
+      setForm((current) => ({ ...current, assetId: asset.id, currency: asset.currency }));
+      navigate('?', { replace: true });
+    }
+  }, [assetParam, assets, openModal, navigate]);
+
   const quickCurrency = form.currency || 'EUR';
 
   return (
