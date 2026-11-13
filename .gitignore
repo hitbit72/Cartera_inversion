@@ -1,13 +1,21 @@
 node_modules/
 dist/
 coverage/
+
+# Environments
 .env
 .env.*
 !.env.example
+.vevn
+
 *.log
 .DS_Store
 .vscode/
 .idea/
+
+# Agents
 .opencode/
 .privado/
+system-prompt.md
+AGENTS.md
 
