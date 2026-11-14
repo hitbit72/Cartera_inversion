@@ -325,6 +325,44 @@ export const dividendsQuerySchema = paginationQuerySchema.extend({
 });
 
 /* ------------------------------------------------------------------ */
+/* Importación CSV de operaciones                                     */
+/* ------------------------------------------------------------------ */
+
+/** Una fila del CSV de importación. Usa símbolo en lugar de asset_id
+ *  porque el usuario no conoce los UUID internos. */
+export const csvTransactionRowSchema = z
+  .object({
+    symbol: z.string().trim().min(1, 'El símbolo es obligatorio.'),
+    type: z.enum(TRANSACTION_TYPES),
+    trade_date: notFutureDateSchema,
+    quantity: quantitySchema,
+    unit_price: moneySchema('El precio unitario'),
+    fees: moneySchema('Las comisiones').default('0'),
+    currency: currencySchema.optional(),
+    notes: notesSchema.nullable().optional(),
+  })
+  .strict();
+
+export const csvTransactionImportSchema = z
+  .object({
+    rows: z.array(csvTransactionRowSchema).min(1, 'El archivo no contiene filas válidas.'),
+  })
+  .strict();
+
+export type CsvTransactionRow = z.infer<typeof csvTransactionRowSchema>;
+export type CsvTransactionImport = z.infer<typeof csvTransactionImportSchema>;
+
+export interface CsvImportResult {
+  imported: number;
+  skipped: number;
+  errors: Array<{
+    row: number;
+    field: string | null;
+    message: string;
+  }>;
+}
+
+/* ------------------------------------------------------------------ */
 /* Cartera                                                             */
 /* ------------------------------------------------------------------ */
 

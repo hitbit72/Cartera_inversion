@@ -6,6 +6,7 @@ import { AssetDetailPage } from './pages/AssetDetailPage';
 import { AssetsPage } from './pages/AssetsPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { DividendsPage } from './pages/DividendsPage';
+import { ImportPage } from './pages/ImportPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -59,6 +60,7 @@ export const App = () => (
     <Route element={<Protected />}>
       <Route path="/" element={<DashboardPage />} />
       <Route path="/operaciones" element={<TransactionsPage />} />
+      <Route path="/importar" element={<ImportPage />} />
       <Route path="/dividendos" element={<DividendsPage />} />
       <Route path="/activos" element={<AssetsPage />} />
       <Route path="/activos/:id" element={<AssetDetailPage />} />

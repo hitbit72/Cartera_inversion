@@ -5,6 +5,7 @@ import type {
   TransactionsQuery,
 } from '@cartera/shared';
 import {
+  csvTransactionImportSchema,
   transactionCreateSchema,
   transactionPatchSchema,
   transactionsQuerySchema,
@@ -18,6 +19,7 @@ import {
   createTransaction,
   deleteTransaction,
   getTransactionView,
+  importTransactions,
   listTransactions,
   updateTransaction,
 } from '../services/transactions.js';
@@ -43,6 +45,20 @@ transactionsRouter.post('/', validateBody(transactionCreateSchema), async (req, 
   );
   res.status(201).json(transaction);
 });
+
+/** Importa operaciones desde un array de filas CSV. Devuelve cuántas se
+ *  importaron y los errores de las filas que fallaron. */
+transactionsRouter.post(
+  '/import',
+  validateBody(csvTransactionImportSchema),
+  async (req, res) => {
+    const { userId, client } = authContext(req);
+    const profile = await loadProfile(client, userId);
+    const { rows } = req.validatedBody as import('@cartera/shared').CsvTransactionImport;
+    const result = await importTransactions(client, profile, rows);
+    res.json(result);
+  },
+);
 
 transactionsRouter.get('/:id', validateParams(idParamSchema), async (req, res) => {
   const { userId, client } = authContext(req);

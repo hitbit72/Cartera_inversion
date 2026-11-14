@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type {
   AssetRow,
+  CsvImportResult,
+  CsvTransactionRow,
   ProfileRow,
   TransactionCreateInput,
   TransactionPatchInput,
@@ -384,4 +386,75 @@ export const getTransactionView = async (
   const ledger = computeLedger(row.asset_id, rows, profile.cost_method);
   const baseRate = await baseRateOn(profile, row.fx_rate_date, market);
   return toView(row, ledger.transactions.get(row.id), baseRate);
+};
+
+/** Importa operaciones desde filas CSV. Resuelve cada símbolo al activo del
+ *  usuario y crea las transacciones una a una (reutilizando la validación y
+ *  cálculo de createTransaction). Las filas inválidas se registran como errores
+ *  y no impiden importar el resto. */
+export const importTransactions = async (
+  client: SupabaseClient,
+  profile: ProfileRow,
+  rows: CsvTransactionRow[],
+  market: MarketService = marketService,
+): Promise<CsvImportResult> => {
+  // Carga los activos del usuario para mapear símbolo → asset_id.
+  const { data: assets, error: assetsError } = await client
+    .from('assets')
+    .select('id, symbol, currency')
+    .eq('user_id', profile.id);
+
+  if (assetsError) dbFail(assetsError, 'importTransactions/assets');
+
+  const symbolToAsset = new Map(
+    (assets ?? []).map((asset) => [asset.symbol.toUpperCase(), asset]),
+  );
+
+  const account = await loadAccount(client, profile.id);
+
+  const errors: CsvImportResult['errors'] = [];
+  let imported = 0;
+  let skipped = 0;
+
+  let rowNumber = 0;
+  for (const row of rows) {
+    rowNumber++;
+
+    // Resuelve el símbolo al activo.
+    const asset = symbolToAsset.get(row.symbol.toUpperCase());
+    if (!asset) {
+      errors.push({ row: rowNumber, field: 'symbol', message: `Activo "${row.symbol}" no encontrado en tu catálogo.` });
+      skipped++;
+      continue;
+    }
+
+    const currency = row.currency ?? asset.currency;
+
+    const input: TransactionCreateInput = {
+      asset_id: asset.id,
+      type: row.type,
+      trade_date: row.trade_date,
+      quantity: row.quantity,
+      unit_price: row.unit_price,
+      fees: row.fees,
+      currency,
+      notes: row.notes ?? null,
+    };
+
+    try {
+      await createTransaction(client, profile, input, market);
+      imported++;
+    } catch (error) {
+      skipped++;
+      if (error instanceof AppError) {
+        errors.push({ row: rowNumber, field: error.errors?.[0]?.field ?? null, message: error.message });
+      } else if (error instanceof Error) {
+        errors.push({ row: rowNumber, field: null, message: error.message });
+      } else {
+        errors.push({ row: rowNumber, field: null, message: 'Error inesperado al importar esta operación.' });
+      }
+    }
+  }
+
+  return { imported, skipped, errors };
 };

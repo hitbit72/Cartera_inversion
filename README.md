@@ -182,6 +182,7 @@ Rutas de la aplicación (`apps/web`):
 | `/login`, `/registro`, `/recuperar`, `/restablecer` | Acceso, alta con invitación y recuperación de contraseña. |
 | `/` | Dashboard: valor de mercado, plusvalías, dividendos, rendimiento total, TWR/XIRR, benchmark, evolución, distribución por tipo/sector/país/divisa/activo, posiciones abiertas y cerradas, dividendos por año. |
 | `/operaciones` | Histórico paginado con filtros y alta de compras/ventas (con divisa y comisiones). |
+| `/importar` | Importación de operaciones desde CSV: descarga de plantilla, mapeo de columnas, vista previa y confirmación. |
 | `/dividendos` | Resumen bruto/retenciones/neto, agrupación por año o activo y alta de dividendos. |
 | `/activos` | Catálogo con búsqueda en Yahoo Finance, clasificación editable y precio manual de respaldo. |
 | `/activos/:id` | Ficha de activo: clasificación, posición (abierta o cerrada), P&L realizado y no realizado, dividendos acumulados, listado de operaciones y dividendos del activo. Enlaces a editar activo y nueva operación. |
@@ -194,6 +195,7 @@ Detalles de comportamiento:
 - **Validación** de formularios con los mismos esquemas zod de `packages/shared`, y además en el servidor.
 - **Alta, edición y borrado** de operaciones, dividendos y activos. El borrado pide confirmación y cualquier cambio recalcula posiciones, plusvalías y rentabilidad al instante.
 - **Precios**: el botón *Actualizar precios* lanza `POST /market/refresh`; la API responde 202 y la interfaz refresca las consultas cuando termina la actualización en segundo plano.
+- **Importación CSV**: `POST /transactions/import` acepta un array de filas con símbolo (resuelto al activo del usuario), tipo, fecha, cantidad, precio, comisiones, divisa y notas. Las filas inválidas se omiten con detalle de error sin bloquear el resto.
 - Si la API de mercado falla, el dashboard sigue funcionando con la última cotización en caché o el precio manual y muestra avisos.
 - Alcance actual: no hay edición/borrado avanzado de operaciones ni gestión de varias carteras; cada usuario tiene una sola cuenta.
 
