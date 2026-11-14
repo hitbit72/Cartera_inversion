@@ -40,6 +40,14 @@ const TYPE_LABELS: Record<TransactionType, string> = {
   SELL: 'Venta',
 };
 
+/** Normaliza el tipo de transacción aceptando tanto español como inglés. */
+const normalizeTransactionType = (value: string): TransactionType | null => {
+  const v = value.trim();
+  if (v === 'BUY' || v === 'Compra') return 'BUY';
+  if (v === 'SELL' || v === 'Venta') return 'SELL';
+  return null;
+};
+
 /** Parser CSV simple sin dependencias externas. Maneja campos entre comillas. */
 const parseCsv = (text: string): string[][] => {
   const rows: string[][] = [];
@@ -226,7 +234,7 @@ export const ImportPage = () => {
         errors.push({ field: 'symbol', message: `Activo "${values.symbol}" no encontrado en tu catálogo.` });
       }
 
-      if (!values.type || !TRANSACTION_TYPES.includes(values.type as TransactionType)) {
+      if (!values.type || normalizeTransactionType(values.type) === null) {
         errors.push({ field: 'type', message: 'El tipo debe ser Compra o Venta.' });
       }
 
@@ -265,16 +273,23 @@ export const ImportPage = () => {
     setSubmitting(true);
     setMessage(null);
     try {
-      const rows: CsvTransactionRow[] = preview.map((item) => ({
-        symbol: (item.values.symbol ?? '').trim(),
-        type: (item.values.type ?? 'BUY') as TransactionType,
-        trade_date: item.values.trade_date ?? '',
-        quantity: item.values.quantity ?? '',
-        unit_price: item.values.unit_price ?? '',
-        fees: item.values.fees === '' || item.values.fees === undefined ? '0' : item.values.fees,
-        currency: (item.values.currency ?? 'EUR') as Currency,
-        notes: item.values.notes ?? null,
-      }));
+      const rows: CsvTransactionRow[] = preview.map((item) => {
+        const normalizedType = normalizeTransactionType(item.values.type ?? '');
+        if (!normalizedType) {
+          // Ya se validó en la vista previa, pero por seguridad.
+          throw new Error(`Tipo de transacción no válido en fila ${item.rowNumber}.`);
+        }
+        return {
+          symbol: (item.values.symbol ?? '').trim(),
+          type: normalizedType,
+          trade_date: item.values.trade_date ?? '',
+          quantity: item.values.quantity ?? '',
+          unit_price: item.values.unit_price ?? '',
+          fees: item.values.fees === '' || item.values.fees === undefined ? '0' : item.values.fees,
+          currency: (item.values.currency ?? 'EUR') as Currency,
+          notes: item.values.notes ?? null,
+        };
+      });
 
       const result = await api.post<{ imported: number; skipped: number; errors: Array<{ row: number; field: string | null; message: string }> }>('/transactions/import', {
         rows,
@@ -464,6 +479,8 @@ export const ImportPage = () => {
                   {preview.map((item) => {
                     const hasErrors = item.errors.length > 0;
                     const asset = symbolsByAsset.get((item.values.symbol ?? '').trim().toUpperCase());
+                    const normalizedType = normalizeTransactionType(item.values.type ?? '');
+                    const typeLabel = normalizedType ? TYPE_LABELS[normalizedType] : item.values.type;
                     return (
                       <tr
                         key={item.rowNumber}
@@ -479,7 +496,7 @@ export const ImportPage = () => {
                           {asset ? <span className="ml-1 text-[10px] text-muted">{asset.currency}</span> : null}
                         </td>
                         <td className="px-3 py-3 tabular">
-                          {TYPE_LABELS[item.values.type as TransactionType] ?? item.values.type}
+                          {typeLabel}
                         </td>
                         <td className="px-3 py-3 tabular text-muted">{item.values.trade_date}</td>
                         <td className="px-3 py-3 text-right tabular">{item.values.quantity}</td>
