@@ -1,6 +1,11 @@
 import { Router } from 'express';
-import type { DividendCreateInput, DividendPatchInput, DividendsQuery } from '@cartera/shared';
+import type {
+  DividendCreateInput,
+  DividendPatchInput,
+  DividendsQuery,
+} from '@cartera/shared';
 import {
+  csvDividendImportSchema,
   dividendCreateSchema,
   dividendPatchSchema,
   dividendsQuerySchema,
@@ -14,6 +19,7 @@ import {
   createDividend,
   deleteDividend,
   getDividendView,
+  importDividends,
   listDividends,
   updateDividend,
 } from '../services/dividends.js';
@@ -39,6 +45,20 @@ dividendsRouter.post('/', validateBody(dividendCreateSchema), async (req, res) =
   );
   res.status(201).json(dividend);
 });
+
+/** Importa dividendos desde un array de filas CSV. Devuelve cuántos se
+ *  importaron y los errores de las filas que fallaron. */
+dividendsRouter.post(
+  '/import',
+  validateBody(csvDividendImportSchema),
+  async (req, res) => {
+    const { userId, client } = authContext(req);
+    const profile = await loadProfile(client, userId);
+    const { rows } = req.validatedBody as import('@cartera/shared').CsvDividendImport;
+    const result = await importDividends(client, profile, rows);
+    res.json(result);
+  },
+);
 
 dividendsRouter.get('/:id', validateParams(idParamSchema), async (req, res) => {
   const { userId, client } = authContext(req);

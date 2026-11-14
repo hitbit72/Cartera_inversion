@@ -221,6 +221,12 @@ export const DividendsPage = () => {
             <Button variant="primary" onClick={openModal}>
               Anotar dividendo
             </Button>
+            <Link
+              to="/importar/dividendos"
+              className="inline-flex items-center justify-center rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink transition hover:bg-surface-2"
+            >
+              Importar CSV
+            </Link>
           </>
         }
       />

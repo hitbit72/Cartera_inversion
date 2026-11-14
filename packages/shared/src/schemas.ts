@@ -363,6 +363,31 @@ export interface CsvImportResult {
 }
 
 /* ------------------------------------------------------------------ */
+/* Importación CSV de dividendos                                      */
+/* ------------------------------------------------------------------ */
+
+/** Una fila del CSV de importación de dividendos. */
+export const csvDividendRowSchema = z
+  .object({
+    symbol: z.string().trim().min(1, 'El símbolo es obligatorio.'),
+    payment_date: notFutureDateSchema,
+    gross_amount: moneySchema('El importe bruto'),
+    withholding_tax: moneySchema('La retención').default('0'),
+    currency: currencySchema.optional(),
+    notes: notesSchema.nullable().optional(),
+  })
+  .strict();
+
+export const csvDividendImportSchema = z
+  .object({
+    rows: z.array(csvDividendRowSchema).min(1, 'El archivo no contiene filas válidas.'),
+  })
+  .strict();
+
+export type CsvDividendRow = z.infer<typeof csvDividendRowSchema>;
+export type CsvDividendImport = z.infer<typeof csvDividendImportSchema>;
+
+/* ------------------------------------------------------------------ */
 /* Cartera                                                             */
 /* ------------------------------------------------------------------ */
 

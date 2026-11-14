@@ -1,7 +1,14 @@
-import { useCallback, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import type { AssetRow, CsvTransactionRow, Currency, TransactionType } from '@cartera/shared';
+import type {
+  AssetRow,
+  CsvDividendRow,
+  CsvImportResult,
+  CsvTransactionRow,
+  Currency,
+  TransactionType,
+} from '@cartera/shared';
 import { CURRENCIES, TRANSACTION_TYPES } from '@cartera/shared';
 import { PageHeader } from '../components/PageHeader';
 import {
@@ -14,17 +21,16 @@ import {
   Field,
   Input,
   LoadingBlock,
-  Modal,
   Select,
   Stat,
-  Textarea,
 } from '../components/ui';
 import { ApiError, api } from '../lib/api';
 import { formatDate, money } from '../lib/format';
 
+type ImportType = 'transactions' | 'dividends';
 type ImportStep = 'file' | 'mapping' | 'preview' | 'done';
 
-const CSV_HEADERS = [
+const CSV_HEADERS_TRANSACTIONS = [
   { key: 'symbol', label: 'Símbolo', required: true },
   { key: 'type', label: 'Tipo (Compra/Venta)', required: true },
   { key: 'trade_date', label: 'Fecha (YYYY-MM-DD)', required: true },
@@ -35,17 +41,18 @@ const CSV_HEADERS = [
   { key: 'notes', label: 'Notas', required: false },
 ];
 
+const CSV_HEADERS_DIVIDENDS = [
+  { key: 'symbol', label: 'Símbolo', required: true },
+  { key: 'payment_date', label: 'Fecha de cobro (YYYY-MM-DD)', required: true },
+  { key: 'gross_amount', label: 'Importe bruto', required: true },
+  { key: 'withholding_tax', label: 'Retención', required: false },
+  { key: 'currency', label: 'Divisa', required: false },
+  { key: 'notes', label: 'Notas', required: false },
+];
+
 const TYPE_LABELS: Record<TransactionType, string> = {
   BUY: 'Compra',
   SELL: 'Venta',
-};
-
-/** Normaliza el tipo de transacción aceptando tanto español como inglés. */
-const normalizeTransactionType = (value: string): TransactionType | null => {
-  const v = value.trim();
-  if (v === 'BUY' || v === 'Compra') return 'BUY';
-  if (v === 'SELL' || v === 'Venta') return 'SELL';
-  return null;
 };
 
 /** Parser CSV simple sin dependencias externas. Maneja campos entre comillas. */
@@ -92,7 +99,6 @@ const parseCsv = (text: string): string[][] => {
     rows.push(row);
   }
 
-  // Elimina la última fila si está completamente vacía (trailing newline).
   const last = rows[rows.length - 1];
   if (last && last.every((cell) => cell.trim() === '')) {
     rows.pop();
@@ -118,6 +124,13 @@ const isNonNegativeNumber = (value: string): boolean => {
   return Number.isFinite(n) && n >= 0;
 };
 
+const normalizeTransactionType = (value: string): TransactionType | null => {
+  const v = value.trim();
+  if (v === 'BUY' || v === 'Compra') return 'BUY';
+  if (v === 'SELL' || v === 'Venta') return 'SELL';
+  return null;
+};
+
 interface MappedRow {
   rowNumber: number;
   values: Record<string, string>;
@@ -126,12 +139,19 @@ interface MappedRow {
 
 export const ImportPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const importTypeParam = searchParams.get('type');
+  const isDividendsRoute = location.pathname.endsWith('/dividendos');
+  const importType: ImportType =
+    importTypeParam === 'dividends' || isDividendsRoute ? 'dividends' : 'transactions';
+
   const [step, setStep] = useState<ImportStep>('file');
   const [file, setFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState('');
   const [rawRows, setRawRows] = useState<string[][]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
-  const [mapping, setMapping] = useState<Record<string, string>>({}); // columna -> clave del campo
+  const [mapping, setMapping] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<MappedRow[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -147,22 +167,46 @@ export const ImportPage = () => {
     [assets],
   );
 
+  const csvHeaders = importType === 'dividends' ? CSV_HEADERS_DIVIDENDS : CSV_HEADERS_TRANSACTIONS;
+  const requiredKeys = csvHeaders.filter((h) => h.required).map((h) => h.key);
+  const mappingComplete = requiredKeys.every((key) => Object.values(mapping).includes(key));
+
+  const pageTitle =
+    importType === 'dividends' ? 'Importar dividendos desde CSV' : 'Importar operaciones desde CSV';
+  const pageDescription =
+    importType === 'dividends'
+      ? 'Sube un archivo CSV con tus dividendos cobrados. El neto se sumará a la rentabilidad de cada activo.'
+      : 'Sube un archivo CSV con tus compras y ventas. Las plusvalías se calcularán automáticamente.';
+
   // ------------------------------------------------------------------
   // Paso 1: archivo
   // ------------------------------------------------------------------
 
   const downloadTemplate = () => {
-    const header = CSV_HEADERS.map((h) => h.label).join(',');
-    const example1 = 'AAPL,Compra,2026-01-15,10,150,0,EUR,Compra inicial';
-    const example2 = 'BTC-USD,Venta,2026-03-20,0.5,45000,10,USD,Venta parcial';
-    const csv = [header, example1, example2].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'plantilla-operaciones.csv';
-    link.click();
-    URL.revokeObjectURL(url);
+    const header = csvHeaders.map((h) => h.label).join(',');
+    if (importType === 'dividends') {
+      const example1 = 'TEF.MC,2024-01-15,3.7331,0,EUR,Bonus Bienvenida';
+      const example2 = 'AAPL,2025-06-15,0.88,0.13,USD,';
+      const csv = [header, example1, example2].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'plantilla-dividendos.csv';
+      link.click();
+      URL.revokeObjectURL(url);
+    } else {
+      const example1 = 'AAPL,Compra,2026-01-15,10,150,0,EUR,Compra inicial';
+      const example2 = 'BTC-USD,Venta,2026-03-20,0.5,45000,10,USD,Venta parcial';
+      const csv = [header, example1, example2].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'plantilla-operaciones.csv';
+      link.click();
+      URL.revokeObjectURL(url);
+    }
   };
 
   const handleFile = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -202,14 +246,11 @@ export const ImportPage = () => {
     const next: Record<string, string> = {};
     headers.forEach((header) => {
       const normalized = header.trim().toLowerCase();
-      const match = CSV_HEADERS.find((h) => h.label.toLowerCase() === normalized);
+      const match = csvHeaders.find((h) => h.label.toLowerCase() === normalized);
       if (match) next[header] = match.key;
     });
     setMapping(next);
   };
-
-  const requiredKeys = CSV_HEADERS.filter((h) => h.required).map((h) => h.key);
-  const mappingComplete = requiredKeys.every((key) => Object.values(mapping).includes(key));
 
   const goToPreview = () => {
     const mapped: MappedRow[] = [];
@@ -234,24 +275,47 @@ export const ImportPage = () => {
         errors.push({ field: 'symbol', message: `Activo "${values.symbol}" no encontrado en tu catálogo.` });
       }
 
-      if (!values.type || normalizeTransactionType(values.type) === null) {
-        errors.push({ field: 'type', message: 'El tipo debe ser Compra o Venta.' });
-      }
-
-      if (!values.trade_date || !isIsoDate(values.trade_date)) {
-        errors.push({ field: 'trade_date', message: 'Fecha inválida (usa YYYY-MM-DD).' });
-      }
-
-      if (!values.quantity || !isPositiveNumber(values.quantity)) {
-        errors.push({ field: 'quantity', message: 'La cantidad debe ser un número positivo.' });
-      }
-
-      if (!values.unit_price || !isPositiveNumber(values.unit_price)) {
-        errors.push({ field: 'unit_price', message: 'El precio unitario debe ser un número positivo.' });
-      }
-
-      if (values.fees !== undefined && values.fees !== '' && !isNonNegativeNumber(values.fees)) {
-        errors.push({ field: 'fees', message: 'Las comisiones no pueden ser negativas.' });
+      if (importType === 'transactions') {
+        if (!values.type || normalizeTransactionType(values.type) === null) {
+          errors.push({ field: 'type', message: 'El tipo debe ser Compra o Venta.' });
+        }
+        if (!values.trade_date || !isIsoDate(values.trade_date)) {
+          errors.push({ field: 'trade_date', message: 'Fecha inválida (usa YYYY-MM-DD).' });
+        }
+        if (!values.quantity || !isPositiveNumber(values.quantity)) {
+          errors.push({ field: 'quantity', message: 'La cantidad debe ser un número positivo.' });
+        }
+        if (!values.unit_price || !isPositiveNumber(values.unit_price)) {
+          errors.push({ field: 'unit_price', message: 'El precio unitario debe ser un número positivo.' });
+        }
+        if (values.fees !== undefined && values.fees !== '' && !isNonNegativeNumber(values.fees)) {
+          errors.push({ field: 'fees', message: 'Las comisiones no pueden ser negativas.' });
+        }
+      } else {
+        if (!values.payment_date || !isIsoDate(values.payment_date)) {
+          errors.push({ field: 'payment_date', message: 'Fecha inválida (usa YYYY-MM-DD).' });
+        }
+        if (!values.gross_amount || !isPositiveNumber(values.gross_amount)) {
+          errors.push({ field: 'gross_amount', message: 'El importe bruto debe ser un número positivo.' });
+        }
+        if (
+          values.withholding_tax !== undefined &&
+          values.withholding_tax !== '' &&
+          !isNonNegativeNumber(values.withholding_tax)
+        ) {
+          errors.push({ field: 'withholding_tax', message: 'La retención no puede ser negativa.' });
+        }
+        if (
+          values.withholding_tax !== undefined &&
+          values.withholding_tax !== '' &&
+          values.gross_amount &&
+          Number(values.withholding_tax) > Number(values.gross_amount)
+        ) {
+          errors.push({
+            field: 'withholding_tax',
+            message: 'La retención no puede superar el importe bruto.',
+          });
+        }
       }
 
       if (values.currency && !CURRENCIES.includes(values.currency as Currency)) {
@@ -273,34 +337,51 @@ export const ImportPage = () => {
     setSubmitting(true);
     setMessage(null);
     try {
-      const rows: CsvTransactionRow[] = preview.map((item) => {
-        const normalizedType = normalizeTransactionType(item.values.type ?? '');
-        if (!normalizedType) {
-          // Ya se validó en la vista previa, pero por seguridad.
-          throw new Error(`Tipo de transacción no válido en fila ${item.rowNumber}.`);
-        }
-        return {
+      if (importType === 'dividends') {
+        const rows: CsvDividendRow[] = preview.map((item) => ({
           symbol: (item.values.symbol ?? '').trim(),
-          type: normalizedType,
-          trade_date: item.values.trade_date ?? '',
-          quantity: item.values.quantity ?? '',
-          unit_price: item.values.unit_price ?? '',
-          fees: item.values.fees === '' || item.values.fees === undefined ? '0' : item.values.fees,
+          payment_date: item.values.payment_date ?? '',
+          gross_amount: item.values.gross_amount ?? '',
+          withholding_tax: item.values.withholding_tax === '' ? '0' : item.values.withholding_tax ?? '0',
           currency: (item.values.currency ?? 'EUR') as Currency,
           notes: item.values.notes ?? null,
-        };
-      });
+        }));
 
-      const result = await api.post<{ imported: number; skipped: number; errors: Array<{ row: number; field: string | null; message: string }> }>('/transactions/import', {
-        rows,
-      });
+        const result = await api.post<CsvImportResult>('/dividends/import', { rows });
 
-      setStep('done');
-      setMessage(
-        `Importación completa: ${result.imported} operación${result.imported !== 1 ? 'es' : ''} importada${result.imported !== 1 ? 's' : ''}${
-          result.skipped > 0 ? `, ${result.skipped} omitida${result.skipped !== 1 ? 's' : ''}` : ''
-        }.`,
-      );
+        setStep('done');
+        setMessage(
+          `Importación completa: ${result.imported} dividendo${result.imported !== 1 ? 's' : ''} importado${
+            result.imported !== 1 ? 's' : ''
+          }${result.skipped > 0 ? `, ${result.skipped} omitido${result.skipped !== 1 ? 's' : ''}` : ''}.`,
+        );
+      } else {
+        const rows: CsvTransactionRow[] = preview.map((item) => {
+          const normalizedType = normalizeTransactionType(item.values.type ?? '');
+          if (!normalizedType) {
+            throw new Error(`Tipo de transacción no válido en fila ${item.rowNumber}.`);
+          }
+          return {
+            symbol: (item.values.symbol ?? '').trim(),
+            type: normalizedType,
+            trade_date: item.values.trade_date ?? '',
+            quantity: item.values.quantity ?? '',
+            unit_price: item.values.unit_price ?? '',
+            fees: item.values.fees === '' || item.values.fees === undefined ? '0' : item.values.fees,
+            currency: (item.values.currency ?? 'EUR') as Currency,
+            notes: item.values.notes ?? null,
+          };
+        });
+
+        const result = await api.post<CsvImportResult>('/transactions/import', { rows });
+
+        setStep('done');
+        setMessage(
+          `Importación completa: ${result.imported} operación${result.imported !== 1 ? 'es' : ''} importada${
+            result.imported !== 1 ? 's' : ''
+          }${result.skipped > 0 ? `, ${result.skipped} omitida${result.skipped !== 1 ? 's' : ''}` : ''}.`,
+        );
+      }
     } catch (error) {
       if (error instanceof ApiError) {
         setMessage(error.message);
@@ -331,8 +412,8 @@ export const ImportPage = () => {
     return (
       <div className="animate-rise space-y-5">
         <PageHeader
-          title="Importar operaciones desde CSV"
-          description="Sube un archivo CSV con tus compras y ventas. Las plusvalías se calcularán automáticamente."
+          title={pageTitle}
+          description={pageDescription}
           actions={
             <>
               <Button variant="subtle" onClick={downloadTemplate}>
@@ -362,7 +443,7 @@ export const ImportPage = () => {
             )}
             <p className="text-xs text-muted">
               Encabezados esperados:{' '}
-              {CSV_HEADERS.map((h) => (h.required ? `*${h.label}` : h.label)).join(', ')}.
+              {csvHeaders.map((h) => (h.required ? `*${h.label}` : h.label)).join(', ')}.
               Los campos marcados con * son obligatorios.
             </p>
           </div>
@@ -401,7 +482,7 @@ export const ImportPage = () => {
                   }
                 >
                   <option value="">(ignorar columna)</option>
-                  {CSV_HEADERS.map((field) => (
+                  {csvHeaders.map((field) => (
                     <option key={field.key} value={field.key}>
                       {field.label}{field.required ? ' *' : ''}
                     </option>
@@ -414,7 +495,7 @@ export const ImportPage = () => {
             <ErrorNote>
               Faltan campos obligatorios: {requiredKeys
                 .filter((key) => !Object.values(mapping).includes(key))
-                .map((key) => CSV_HEADERS.find((h) => h.key === key)?.label)
+                .map((key) => csvHeaders.find((h) => h.key === key)?.label)
                 .join(', ')}.
             </ErrorNote>
           )}
@@ -466,11 +547,21 @@ export const ImportPage = () => {
                   <tr className="border-b border-line text-left text-[11px] uppercase tracking-wider text-muted">
                     <th className="px-5 py-3 font-medium">#</th>
                     <th className="px-3 py-3 font-medium">Símbolo</th>
-                    <th className="px-3 py-3 font-medium">Tipo</th>
-                    <th className="px-3 py-3 font-medium">Fecha</th>
-                    <th className="px-3 py-3 text-right font-medium">Cantidad</th>
-                    <th className="px-3 py-3 text-right font-medium">Precio</th>
-                    <th className="px-3 py-3 text-right font-medium">Comisiones</th>
+                    {importType === 'transactions' ? (
+                      <>
+                        <th className="px-3 py-3 font-medium">Tipo</th>
+                        <th className="px-3 py-3 font-medium">Fecha</th>
+                        <th className="px-3 py-3 text-right font-medium">Cantidad</th>
+                        <th className="px-3 py-3 text-right font-medium">Precio</th>
+                        <th className="px-3 py-3 text-right font-medium">Comisiones</th>
+                      </>
+                    ) : (
+                      <>
+                        <th className="px-3 py-3 font-medium">Fecha de cobro</th>
+                        <th className="px-3 py-3 text-right font-medium">Bruto</th>
+                        <th className="px-3 py-3 text-right font-medium">Retención</th>
+                      </>
+                    )}
                     <th className="px-3 py-3 font-medium">Divisa</th>
                     <th className="px-5 py-3 text-right font-medium">Estado</th>
                   </tr>
@@ -479,7 +570,9 @@ export const ImportPage = () => {
                   {preview.map((item) => {
                     const hasErrors = item.errors.length > 0;
                     const asset = symbolsByAsset.get((item.values.symbol ?? '').trim().toUpperCase());
-                    const normalizedType = normalizeTransactionType(item.values.type ?? '');
+                    const normalizedType = importType === 'transactions'
+                      ? normalizeTransactionType(item.values.type ?? '')
+                      : null;
                     const typeLabel = normalizedType ? TYPE_LABELS[normalizedType] : item.values.type;
                     return (
                       <tr
@@ -495,13 +588,21 @@ export const ImportPage = () => {
                           {item.values.symbol ?? ''}
                           {asset ? <span className="ml-1 text-[10px] text-muted">{asset.currency}</span> : null}
                         </td>
-                        <td className="px-3 py-3 tabular">
-                          {typeLabel}
-                        </td>
-                        <td className="px-3 py-3 tabular text-muted">{item.values.trade_date}</td>
-                        <td className="px-3 py-3 text-right tabular">{item.values.quantity}</td>
-                        <td className="px-3 py-3 text-right tabular">{item.values.unit_price}</td>
-                        <td className="px-3 py-3 text-right tabular text-muted">{item.values.fees ?? '0'}</td>
+                        {importType === 'transactions' ? (
+                          <>
+                            <td className="px-3 py-3 tabular">{typeLabel}</td>
+                            <td className="px-3 py-3 tabular text-muted">{item.values.trade_date}</td>
+                            <td className="px-3 py-3 text-right tabular">{item.values.quantity}</td>
+                            <td className="px-3 py-3 text-right tabular">{item.values.unit_price}</td>
+                            <td className="px-3 py-3 text-right tabular text-muted">{item.values.fees ?? '0'}</td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-3 py-3 tabular text-muted">{item.values.payment_date}</td>
+                            <td className="px-3 py-3 text-right tabular">{item.values.gross_amount}</td>
+                            <td className="px-3 py-3 text-right tabular text-muted">{item.values.withholding_tax ?? '0'}</td>
+                          </>
+                        )}
                         <td className="px-3 py-3 tabular text-muted">{item.values.currency ?? 'EUR'}</td>
                         <td className="px-5 py-3 text-right">
                           {hasErrors ? (
@@ -544,7 +645,13 @@ export const ImportPage = () => {
             disabled={validCount === 0 || submitting}
             onClick={submitImport}
           >
-            {submitting ? 'Importando…' : `Importar ${validCount} operación${validCount !== 1 ? 'es' : ''}`}
+            {submitting
+              ? 'Importando…'
+              : `Importar ${validCount} ${
+                  importType === 'dividends'
+                    ? 'dividendo' + (validCount !== 1 ? 's' : '')
+                    : 'operación' + (validCount !== 1 ? 'es' : '')
+                }`}
           </Button>
         </div>
       </div>
@@ -556,7 +663,7 @@ export const ImportPage = () => {
     <div className="animate-rise space-y-5">
       <PageHeader title="Importación completada" actions={commonActions} />
       <Card>
-        <CardHeader title="Operaciones importadas" />
+        <CardHeader title="Elementos importados" />
         <div className="space-y-4">
           {message ? <p className="text-sm text-ink">{message}</p> : null}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

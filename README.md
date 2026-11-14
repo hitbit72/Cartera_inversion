@@ -195,7 +195,7 @@ Detalles de comportamiento:
 - **Validación** de formularios con los mismos esquemas zod de `packages/shared`, y además en el servidor.
 - **Alta, edición y borrado** de operaciones, dividendos y activos. El borrado pide confirmación y cualquier cambio recalcula posiciones, plusvalías y rentabilidad al instante.
 - **Precios**: el botón *Actualizar precios* lanza `POST /market/refresh`; la API responde 202 y la interfaz refresca las consultas cuando termina la actualización en segundo plano.
-- **Importación CSV**: `POST /transactions/import` acepta un array de filas con símbolo (resuelto al activo del usuario), tipo, fecha, cantidad, precio, comisiones, divisa y notas. Las filas inválidas se omiten con detalle de error sin bloquear el resto.
+- **Importación CSV**: `POST /transactions/import` y `POST /dividends/import` aceptan un array de filas con símbolo (resuelto al activo del usuario), fecha, importe, comisiones/retención, divisa y notas. Las filas inválidas se omiten con detalle de error sin bloquear el resto. Desde el frontend: `/importar` para operaciones y `/importar/dividendos` para dividendos.
 - Si la API de mercado falla, el dashboard sigue funcionando con la última cotización en caché o el precio manual y muestra avisos.
 - Alcance actual: no hay edición/borrado avanzado de operaciones ni gestión de varias carteras; cada usuario tiene una sola cuenta.
 

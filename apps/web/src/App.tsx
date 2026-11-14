@@ -61,6 +61,7 @@ export const App = () => (
       <Route path="/" element={<DashboardPage />} />
       <Route path="/operaciones" element={<TransactionsPage />} />
       <Route path="/importar" element={<ImportPage />} />
+      <Route path="/importar/dividendos" element={<ImportPage />} />
       <Route path="/dividendos" element={<DividendsPage />} />
       <Route path="/activos" element={<AssetsPage />} />
       <Route path="/activos/:id" element={<AssetDetailPage />} />

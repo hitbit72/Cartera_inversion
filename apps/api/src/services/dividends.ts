@@ -1,4 +1,6 @@
 import type {
+  CsvDividendRow,
+  CsvImportResult,
   DividendCreateInput,
   DividendPatchInput,
   DividendsQuery,
@@ -7,9 +9,9 @@ import type {
   ProfileRow,
 } from '@cartera/shared';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { AppError, notFound, unprocessable } from '../lib/errors.js';
 import { dbFail } from '../lib/db.js';
 import { decodeCursor, encodeCursor } from '../lib/cursor.js';
-import { notFound, unprocessable } from '../lib/errors.js';
 import { D, money, type Decimal } from '../lib/decimal.js';
 import { getAsset } from './assets.js';
 import { baseRateOn, baseRateSeries } from './base-rate.js';
@@ -236,3 +238,70 @@ export const getDividendView = async (
   const baseRate = await baseRateOn(profile, row.fx_rate_date, market);
   return toView(row, baseRate);
 };
+
+/** Importa dividendos desde filas CSV. Resuelve cada símbolo al activo del
+ *  usuario y crea los dividendos una a una (reutilizando createDividend).
+ *  Las filas inválidas se registran como errores y no impiden importar el resto. */
+export const importDividends = async (
+  client: SupabaseClient,
+  profile: ProfileRow,
+  rows: CsvDividendRow[],
+  market: MarketService = marketService,
+): Promise<CsvImportResult> => {
+  const { data: assets, error: assetsError } = await client
+    .from('assets')
+    .select('id, symbol, currency')
+    .eq('user_id', profile.id);
+
+  if (assetsError) dbFail(assetsError, 'importDividends/assets');
+
+  const symbolToAsset = new Map(
+    (assets ?? []).map((asset) => [asset.symbol.toUpperCase(), asset]),
+  );
+
+  const account = await loadAccount(client, profile.id);
+
+  const errors: CsvImportResult['errors'] = [];
+  let imported = 0;
+  let skipped = 0;
+
+  let rowNumber = 0;
+  for (const row of rows) {
+    rowNumber++;
+
+    const asset = symbolToAsset.get(row.symbol.toUpperCase());
+    if (!asset) {
+      errors.push({ row: rowNumber, field: 'symbol', message: `Activo "${row.symbol}" no encontrado en tu catálogo.` });
+      skipped++;
+      continue;
+    }
+
+    const currency = row.currency ?? asset.currency;
+
+    const input: DividendCreateInput = {
+      asset_id: asset.id,
+      payment_date: row.payment_date,
+      gross_amount: row.gross_amount,
+      withholding_tax: row.withholding_tax,
+      currency,
+      notes: row.notes ?? null,
+    };
+
+    try {
+      await createDividend(client, profile, input, market);
+      imported++;
+    } catch (error) {
+      skipped++;
+      if (error instanceof AppError) {
+        errors.push({ row: rowNumber, field: error.errors?.[0]?.field ?? null, message: error.message });
+      } else if (error instanceof Error) {
+        errors.push({ row: rowNumber, field: null, message: error.message });
+      } else {
+        errors.push({ row: rowNumber, field: null, message: 'Error inesperado al importar este dividendo.' });
+      }
+    }
+  }
+
+  return { imported, skipped, errors };
+};
+
