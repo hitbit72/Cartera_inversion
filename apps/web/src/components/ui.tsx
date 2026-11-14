@@ -25,7 +25,7 @@ export const Card = ({
 }) => (
   <section
     className={cx(
-      'rounded-2xl border border-line bg-surface shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset] mb-2',
+      'rounded-2xl border border-line bg-surface shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset]',
       padded && 'p-5',
       className,
     )}

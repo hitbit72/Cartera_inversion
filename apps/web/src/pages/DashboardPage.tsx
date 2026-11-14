@@ -287,7 +287,7 @@ export const DashboardPage = () => {
         </Card>
       ) : (
         <div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5 mb-2">
             <Stat
               label="Valor de mercado"
               value={money(totals.market_value, base)}
@@ -319,7 +319,7 @@ export const DashboardPage = () => {
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3 mb-2">
             <Card className="xl:col-span-2">
               <CardHeader
                 title="Evolución de la rentabilidad"
@@ -522,7 +522,7 @@ export const DashboardPage = () => {
             </Card>
           </div>
 
-          <Card padded={false}>
+          <Card className="mb-2" padded={false}>
             <div className="flex flex-wrap items-end justify-between gap-2 px-5 pt-5">
               <div>
                 <h2 className="text-sm font-semibold text-ink">Posiciones abiertas</h2>
@@ -618,7 +618,7 @@ export const DashboardPage = () => {
             </div>
           </Card>
 
-          <Card padded={false}>
+          <Card className="mb-2" padded={false}>
             <div className="flex flex-wrap items-end justify-between gap-2 px-5 pt-5">
               <div>
                 <h2 className="text-sm font-semibold text-ink">Posiciones cerradas</h2>
