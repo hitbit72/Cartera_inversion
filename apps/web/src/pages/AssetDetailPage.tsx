@@ -206,7 +206,7 @@ export const AssetDetailPage = () => {
           <Stat 
             label="Coste posición abierta" 
             value={money(position?.cost_basis, base)} 
-            hint="Coste total de los lotes aún abiertos" 
+            hint={`Coste total de los lotes aún abiertos · ${money(position?.quantity ? Number(position.quantity) * Number(position.avg_cost_native) : 0, position?.asset.currency ?? base)} en ${position?.asset.currency ?? base}`} 
           />
           <Stat 
             label="Comisiones pagadas" 
