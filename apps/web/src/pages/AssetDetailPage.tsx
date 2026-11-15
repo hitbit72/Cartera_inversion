@@ -99,6 +99,11 @@ export const AssetDetailPage = () => {
   const realizedPnl = Number(position?.realized_pnl ?? 0);
   const dividendsNet = Number(position?.dividends_net ?? 0);
   const weight = Number(position?.weight_pct ?? 0);
+  const totalFeesBase = useMemo(
+    () =>
+      transactions.reduce((total, tx) => total + Number(tx.fees_base), 0),
+    [transactions],
+  );
 
   const assetUrl = `/activos/${asset.id}`;
 
@@ -190,6 +195,7 @@ export const AssetDetailPage = () => {
             }
           />
           <Stat label="Coste posición abierta" value={money(position?.cost_basis, base)} hint="Coste total de los lotes aún abiertos" />
+          <Stat label="Comisiones pagadas" value={money(totalFeesBase, base)} hint="Suma de comisiones de todas las operaciones de este activo" />
           <Stat
             label="Precio actual"
             value={price(position?.current_price_native)}
