@@ -65,9 +65,17 @@ export const AssetDetailPage = () => {
   const transactions = transactionsQuery.data?.data ?? [];
   const dividends = dividendsQuery.data?.data ?? [];
 
+  // Comisiones en moneda local
   const totalFeesBase = useMemo(
     () =>
       transactions.reduce((total, tx) => total + Number(tx.fees_base), 0),
+    [transactions],
+  );
+
+  // Comisiones en  moneda del activo
+  const totalFees = useMemo(
+    () =>
+      transactions.reduce((total, tx) => total + Number(tx.fees), 0),
     [transactions],
   );
 
@@ -109,9 +117,9 @@ export const AssetDetailPage = () => {
   const assetUrl = `/activos/${asset.id}`;
 
   // calculo de precio medio
-  let totalPrice = 0;
-  let totalLine = 0;
-  let totalPositions = 0;
+  //let totalPrice = 0;
+  //let totalLine = 0;
+  //let totalPositions = 0;
 
   return (
     <div className="animate-rise space-y-5">
@@ -191,12 +199,20 @@ export const AssetDetailPage = () => {
             label="Coste medio"
             value={price(position?.avg_cost_native)}
             hint={
-              `Coste de los lotes abiertos ÷ cantidad · ${position?.asset.currency} · ` +
+              `${position?.asset.currency} · Coste de los lotes abiertos ÷ cantidad · ` +
               `${money(position?.avg_cost, base)} en ${base}`
             }
           />
-          <Stat label="Coste posición abierta" value={money(position?.cost_basis, base)} hint="Coste total de los lotes aún abiertos" />
-          <Stat label="Comisiones pagadas" value={money(totalFeesBase, base)} hint="Suma de comisiones de todas las operaciones de este activo" />
+          <Stat 
+            label="Coste posición abierta" 
+            value={money(position?.cost_basis, base)} 
+            hint="Coste total de los lotes aún abiertos" 
+          />
+          <Stat 
+            label="Comisiones pagadas" 
+            value={money(totalFeesBase, base)} 
+            hint={`${price(totalFees)} ${position?.asset.currency}`} 
+          />
           <Stat
             label="Precio actual"
             value={price(position?.current_price_native)}
@@ -279,9 +295,9 @@ export const AssetDetailPage = () => {
                 <tbody>
                   {transactions.map((tx) => {
                     const isBuy = tx.type === 'BUY';
-                    totalLine = Number(tx.quantity) * Number(tx.unit_price);
-                    totalPrice += totalLine;
-                    totalPositions += Number(tx.quantity);
+                    //totalLine = Number(tx.quantity) * Number(tx.unit_price);
+                    //totalPrice += totalLine;
+                    //totalPositions += Number(tx.quantity);
                     return (
                       <tr
                         key={tx.id}
@@ -317,8 +333,6 @@ export const AssetDetailPage = () => {
                   })}
                 </tbody>
               </table>
-              <p>Total: {totalPrice}</p>
-              <p>Posicones: {totalPositions}</p>
             </div>
           )}
         </Card>
