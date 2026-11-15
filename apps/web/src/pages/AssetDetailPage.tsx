@@ -184,8 +184,12 @@ export const AssetDetailPage = () => {
           <Stat
             label="Coste medio"
             value={price(position?.avg_cost_native)}
-            hint={`${position?.asset.currency} · ${money(position?.avg_cost, base)} en ${base}`}
+            hint={
+              `Coste de los lotes abiertos ÷ cantidad · ${position?.asset.currency} · ` +
+              `${money(position?.avg_cost, base)} en ${base}`
+            }
           />
+          <Stat label="Coste posición abierta" value={money(position?.cost_basis, base)} hint="Coste total de los lotes aún abiertos" />
           <Stat
             label="Precio actual"
             value={price(position?.current_price_native)}
@@ -227,6 +231,18 @@ export const AssetDetailPage = () => {
           />
         </div>
       </Card>
+
+      {position && !isClosed ? (
+        <div className="p-3 rounded-lg border border-line bg-surface-2 text-xs text-muted">
+          <p className="mb-1 font-semibold text-ink">Cómo se calcula el coste medio</p>
+          <p className="text-sm">
+            El coste medio es el <strong>coste de los lotes aún abiertos</strong> dividido entre la
+            cantidad actual. Incluye las comisiones de compra. Las ventas reducen los lotes abiertos
+            (método FIFO por defecto), por lo que no es «total invertido históricamente ÷ cantidad
+            actual».
+          </p>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card padded={false}>
