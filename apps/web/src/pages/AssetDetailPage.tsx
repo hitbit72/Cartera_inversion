@@ -102,6 +102,11 @@ export const AssetDetailPage = () => {
 
   const assetUrl = `/activos/${asset.id}`;
 
+  // calculo de precio medio
+  let totalPrice = 0;
+  let totalLine = 0;
+  let totalPositions = 0;
+
   return (
     <div className="animate-rise space-y-5">
       <PageHeader
@@ -251,6 +256,9 @@ export const AssetDetailPage = () => {
                 <tbody>
                   {transactions.map((tx) => {
                     const isBuy = tx.type === 'BUY';
+                    totalLine = Number(tx.quantity) * Number(tx.unit_price);
+                    totalPrice += totalLine;
+                    totalPositions += Number(tx.quantity);
                     return (
                       <tr
                         key={tx.id}
@@ -286,6 +294,8 @@ export const AssetDetailPage = () => {
                   })}
                 </tbody>
               </table>
+              <p>Total: {totalPrice}</p>
+              <p>Posicones: {totalPositions}</p>
             </div>
           )}
         </Card>

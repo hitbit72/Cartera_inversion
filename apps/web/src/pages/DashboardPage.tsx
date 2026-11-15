@@ -67,7 +67,7 @@ const RANGES: Array<{ value: RangeKey; label: string }> = [
 const RANGE_YEARS: Record<Exclude<RangeKey, 'MAX'>, number> = { '1A': 1, '3A': 3, '5A': 5 };
 
 const DIMENSIONS: Array<{ value: AllocationDimension; label: string }> = (
-  ['asset_type', 'sector', 'country', 'currency', 'asset'] as AllocationDimension[]
+  ['sector', 'asset', 'asset_type', 'country', 'currency'] as AllocationDimension[]
 ).map((value) => ({ value, label: DIMENSION_LABELS[value] ?? value }));
 
 const WARNING_TEXT: Record<MarketWarning['code'], (warning: MarketWarning) => string> = {
@@ -88,7 +88,7 @@ export const DashboardPage = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [range, setRange] = useState<RangeKey>('1A');
-  const [dimension, setDimension] = useState<AllocationDimension>('asset_type');
+  const [dimension, setDimension] = useState<AllocationDimension>('sector');
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
 

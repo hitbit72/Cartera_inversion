@@ -37,7 +37,7 @@ const CSV_HEADERS_TRANSACTIONS = [
   { key: 'quantity', label: 'Cantidad', required: true },
   { key: 'unit_price', label: 'Precio unitario', required: true },
   { key: 'fees', label: 'Comisiones', required: false },
-  { key: 'currency', label: 'Divisa', required: false },
+  { key: 'currency', label: 'Divisa', required: true },
   { key: 'notes', label: 'Notas', required: false },
 ];
 
@@ -46,7 +46,7 @@ const CSV_HEADERS_DIVIDENDS = [
   { key: 'payment_date', label: 'Fecha de cobro (YYYY-MM-DD)', required: true },
   { key: 'gross_amount', label: 'Importe bruto', required: true },
   { key: 'withholding_tax', label: 'Retención', required: false },
-  { key: 'currency', label: 'Divisa', required: false },
+  { key: 'currency', label: 'Divisa', required: true },
   { key: 'notes', label: 'Notas', required: false },
 ];
 
@@ -113,8 +113,33 @@ const isIsoDate = (value: string): boolean => {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 };
 
+const parseNumber = (value: string): number => {
+  // función auxiliar que limpia y transforma correctamente cualquier cadena numérica
+  if (!value) return NaN;
+  let cleanValue = value.trim();
+
+  // Si contiene ambos símbolos, el que esté más a la derecha es el separador decimal
+  if (cleanValue.includes(',') && cleanValue.includes('.')) {
+    const lastComma = cleanValue.lastIndexOf(',');
+    const lastDot = cleanValue.lastIndexOf('.');
+    if (lastComma > lastDot) {
+      // Formato español: 1.254,25 -> quitamos puntos de miles y cambiamos coma por punto decimal
+      cleanValue = cleanValue.replace(/\./g, '').replace(',', '.');
+    } else {
+      // Formato americano: 1,254.25 -> quitamos comas de miles
+      cleanValue = cleanValue.replace(/,/g, '');
+    }
+  } else if (cleanValue.includes(',')) {
+    // Si solo tiene coma (ej. 1254,25), la tratamos como separador decimal
+    cleanValue = cleanValue.replace(',', '.');
+  }
+
+  return Number(cleanValue);
+};
+
 const isPositiveNumber = (value: string): boolean => {
-  const n = Number(value);
+  // const n = Number(value);
+  const n = parseNumber(value);
   return Number.isFinite(n) && n > 0;
 };
 

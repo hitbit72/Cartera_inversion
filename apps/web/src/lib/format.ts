@@ -84,7 +84,11 @@ const priceFormatter6 = new Intl.NumberFormat(LOCALE, {
  */
 export const price = (value: string | number | null | undefined): string => {
   if (value === null || value === undefined || value === '') return '—';
-  const numeric = typeof value === 'number' ? value : Number(value);
+  //const numeric = typeof value === 'number' ? value : Number(value);
+
+  // Si viene como string con formato mixto (comas/puntos), lo convertimos de forma segura
+  const numeric = typeof value === 'number' ? value : Number(value.replace(',', '.'));
+
   if (!Number.isFinite(numeric)) return '—';
   const formatter = Math.abs(numeric) < 1 ? priceFormatter6 : priceFormatter2;
   return formatter.format(numeric);
@@ -185,11 +189,11 @@ export const ASSET_TYPE_LABELS: Record<string, string> = {
 };
 
 export const DIMENSION_LABELS: Record<string, string> = {
-  asset_type: 'Tipo',
   sector: 'Sector',
+  asset: 'Activo',
+  asset_type: 'Tipo',
   country: 'País',
   currency: 'Divisa',
-  asset: 'Activo',
 };
 
 export const COUNTRY_LABELS: Record<string, string> = {
