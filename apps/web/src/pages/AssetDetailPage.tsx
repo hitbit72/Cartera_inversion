@@ -65,6 +65,12 @@ export const AssetDetailPage = () => {
   const transactions = transactionsQuery.data?.data ?? [];
   const dividends = dividendsQuery.data?.data ?? [];
 
+  const totalFeesBase = useMemo(
+    () =>
+      transactions.reduce((total, tx) => total + Number(tx.fees_base), 0),
+    [transactions],
+  );
+
   if (assetQuery.isPending || portfolioQuery.isPending || transactionsQuery.isPending || dividendsQuery.isPending) {
     return <LoadingBlock label="Cargando ficha del activo…" />;
   }
@@ -99,11 +105,6 @@ export const AssetDetailPage = () => {
   const realizedPnl = Number(position?.realized_pnl ?? 0);
   const dividendsNet = Number(position?.dividends_net ?? 0);
   const weight = Number(position?.weight_pct ?? 0);
-  const totalFeesBase = useMemo(
-    () =>
-      transactions.reduce((total, tx) => total + Number(tx.fees_base), 0),
-    [transactions],
-  );
 
   const assetUrl = `/activos/${asset.id}`;
 
